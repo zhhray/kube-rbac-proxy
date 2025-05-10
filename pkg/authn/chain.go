@@ -20,34 +20,32 @@ func NewChainedAuthenticator(auths ...authenticator.Request) *ChainedAuthenticat
 
 func cloneRequest(req *http.Request) *http.Request {
 	reqCopy := req.Clone(context.Background())
-	// 显式复制关键字段
-	reqCopy.URL = &(*req.URL) // 深拷贝 URL
-	reqCopy.Host = req.Host
-	reqCopy.Header = make(http.Header)
-	for k, v := range req.Header {
-		reqCopy.Header[k] = v
-	}
+	reqCopy.URL = &(*req.URL) // 深拷贝 URL 对象
+	reqCopy.Header = req.Header.Clone()
 	return reqCopy
 }
 
 // 修改链式认证器的同步逻辑
 func (c *ChainedAuthenticator) AuthenticateRequest(req *http.Request) (*authenticator.Response, bool, error) {
+	// 深拷贝请求对象
 	reqCopy := cloneRequest(req)
 	var lastErr error
 
 	for _, auth := range c.authenticators {
 		resp, ok, err := auth.AuthenticateRequest(reqCopy)
 		if ok {
-			// 将修改后的 Header 同步回原始请求
-			req.Header = reqCopy.Header.Clone()
+			// 将修改后的 Header 同步到原始请求
+			for k, vv := range reqCopy.Header {
+				req.Header.Del(k) // 先删除原有 Header
+				for _, v := range vv {
+					req.Header.Add(k, v)
+				}
+			}
 			return resp, true, nil
 		}
 		if err != nil {
 			lastErr = err
 		}
 	}
-
-	// 同步最后一次修改的 Header（即使认证失败）
-	req.Header = reqCopy.Header.Clone()
 	return nil, false, lastErr
 }

@@ -296,6 +296,8 @@ func Run(cfg *completedProxyRunOptions) error {
 	}
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		authHeader := req.Header.Get("Authorization")
+
 		ignorePathFound := false
 		for _, pathIgnored := range cfg.ignorePaths {
 			ignorePathFound, err = path.Match(pathIgnored, req.URL.Path)
@@ -335,6 +337,11 @@ func Run(cfg *completedProxyRunOptions) error {
 			handlerFunc(w, req)
 
 			return
+		}
+
+		// 确保认证头不被后续处理覆盖
+		if authHeader != "" {
+			req.Header.Set("Authorization", authHeader)
 		}
 
 		klog.Infof("Final request headers: %+v", req.Header)
