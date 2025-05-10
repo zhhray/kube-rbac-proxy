@@ -41,7 +41,6 @@ import (
 	"golang.org/x/net/http2/h2c"
 
 	"k8s.io/apiserver/pkg/authentication/authenticator"
-	"k8s.io/apiserver/pkg/authorization/union"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -257,21 +256,21 @@ func Run(cfg *completedProxyRunOptions) error {
 		authenticator = delegatingAuthenticator
 	}
 
-	sarClient := cfg.kubeClient.AuthorizationV1()
-	sarAuthorizer, err := authz.NewSarAuthorizer(sarClient)
-	if err != nil {
-		return fmt.Errorf("failed to create sar authorizer: %w", err)
-	}
+	// sarClient := cfg.kubeClient.AuthorizationV1()
+	// sarAuthorizer, err := authz.NewSarAuthorizer(sarClient)
+	// if err != nil {
+	// 	return fmt.Errorf("failed to create sar authorizer: %w", err)
+	// }
 
-	staticAuthorizer, err := authz.NewStaticAuthorizer(cfg.auth.Authorization.Static)
-	if err != nil {
-		return fmt.Errorf("failed to create static authorizer: %w", err)
-	}
+	// staticAuthorizer, err := authz.NewStaticAuthorizer(cfg.auth.Authorization.Static)
+	// if err != nil {
+	// 	return fmt.Errorf("failed to create static authorizer: %w", err)
+	// }
 
-	authorizer := union.New(
-		staticAuthorizer,
-		sarAuthorizer,
-	)
+	// authorizer := union.New(
+	// 	staticAuthorizer,
+	// 	sarAuthorizer,
+	// )
 
 	upstreamTransport, err := initTransport(cfg.upstreamCABundle, cfg.tls.UpstreamClientCertFile, cfg.tls.UpstreamClientKeyFile)
 	if err != nil {
@@ -312,6 +311,7 @@ func Run(cfg *completedProxyRunOptions) error {
 		// 仅执行 OIDC 认证，跳过鉴权
 		_, ok, err := authenticator.AuthenticateRequest(req)
 		if err != nil || !ok {
+			w.Header().Set("WWW-Authenticate", `Basic realm="Registry Realm", charset="UTF-8"`)
 			http.Error(w, "OIDC Authentication Failed", http.StatusUnauthorized)
 			return
 		}
@@ -319,6 +319,7 @@ func Run(cfg *completedProxyRunOptions) error {
 		// 检查是否为 Docker Login 请求路径
 		isDockerLoginRequest := req.URL.Path == "/v2/" || req.URL.Path == "/v1/users/"
 		if isDockerLoginRequest {
+			klog.Infof("docker login success, return ok")
 			// 直接返回成功响应（模拟 Registry 的 /v2/ 端点）
 			w.Header().Set("Docker-Distribution-Api-Version", "registry/2.0")
 			w.WriteHeader(http.StatusOK)
@@ -329,13 +330,14 @@ func Run(cfg *completedProxyRunOptions) error {
 		if !ignorePathFound {
 			handlerFunc := proxy.ServeHTTP
 			handlerFunc = filters.WithAuthHeaders(cfg.auth.Authentication.Header, handlerFunc)
-			handlerFunc = filters.WithAuthorization(authorizer, cfg.auth.Authorization, handlerFunc)
+			// handlerFunc = filters.WithAuthorization(authorizer, cfg.auth.Authorization, handlerFunc)
 			handlerFunc = filters.WithAuthentication(authenticator, cfg.auth.Authentication.Token.Audiences, handlerFunc)
 			handlerFunc(w, req)
 
 			return
 		}
 
+		klog.Infof("Final request headers: %+v", req.Header)
 		proxy.ServeHTTP(w, req)
 	})
 	handler = filters.WithAllowPaths(cfg.allowPaths, handler)

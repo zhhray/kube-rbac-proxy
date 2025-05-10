@@ -95,6 +95,8 @@ func parseBasicAuth(r *http.Request) (string, string, bool) {
 
 // 调用 OIDC Token 端点
 func (h *BasicOAuthHandler) getOIDCToken(username, password string) (string, error) {
+	klog.Infof("Attempting OIDC token exchange for user: %s", username)
+
 	form := url.Values{}
 	form.Add("grant_type", "password")
 	form.Add("username", username)
@@ -102,6 +104,7 @@ func (h *BasicOAuthHandler) getOIDCToken(username, password string) (string, err
 	form.Add("scope", "openid profile offline_access email groups ext")
 	if h.ldapID != "" {
 		form.Add("conn_id", h.ldapID)
+		klog.Infof("Using LDAP connection ID: %s", h.ldapID)
 	}
 
 	form.Add("client_id", h.clientID)
@@ -109,10 +112,12 @@ func (h *BasicOAuthHandler) getOIDCToken(username, password string) (string, err
 
 	req, _ := http.NewRequest("POST", h.oidcTokenEndpoint, strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	klog.V(5).Infof("OIDC token request: %s", form.Encode())
 
 	resp, err := h.httpClient.Do(req)
 	if err != nil {
-		return "", err
+		klog.Errorf("OIDC token request failed: %v", err)
+		return "", fmt.Errorf("oidc server unreachable: %v", err)
 	}
 	defer resp.Body.Close()
 
@@ -127,16 +132,22 @@ func (h *BasicOAuthHandler) getOIDCToken(username, password string) (string, err
 	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
 		return "", fmt.Errorf("failed to decode token response: %v", err)
 	}
-	klog.V(5).Infof("get oidc token response: %v", tokenResp)
+	klog.Infof("Successfully obtained OIDC token for %s (length: %d)", username, len(tokenResp.BearerToken))
 
 	return tokenResp.BearerToken, nil
 }
 
 // 判断是否为 Docker Registry 请求
 func IsDockerRegistryRequest(r *http.Request) bool {
-	return strings.HasPrefix(r.URL.Path, "/v2/") ||
+	authHeader := r.Header.Get("Authorization")
+	klog.Infof("r.URL.Path %s Authorization header: %s", r.URL.Path, authHeader)
+
+	ok := strings.HasPrefix(r.URL.Path, "/v2/") ||
 		strings.HasPrefix(r.URL.Path, "/v1/") ||
-		r.URL.Path == "/" // 处理根路径探测
+		r.URL.Path == "/"
+
+	klog.Infof("r.URL.Path %s is docker registry request: %v", r.URL.Path, ok)
+	return ok
 }
 
 // 检查是否携带 Bearer Token
