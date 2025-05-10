@@ -5,7 +5,8 @@ export GO111MODULE
 
 PROGRAM_NAME?=kube-rbac-proxy
 GITHUB_URL=github.com/brancz/kube-rbac-proxy
-GOOS?=$(shell uname -s | tr A-Z a-z)
+# GOOS?=$(shell uname -s | tr A-Z a-z)
+GOOS=linux
 GOARCH?=$(shell go env GOARCH)
 BASEIMAGE?=gcr.io/distroless/static:nonroot-$(GOARCH)
 OUT_DIR=_output

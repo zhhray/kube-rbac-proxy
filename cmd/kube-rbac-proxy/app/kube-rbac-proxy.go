@@ -228,7 +228,21 @@ func Run(cfg *completedProxyRunOptions) error {
 		}
 
 		go oidcAuthenticator.Run(ctx)
-		authenticator = oidcAuthenticator
+		// authenticator = oidcAuthenticator
+
+		// 2. 初始化 BasicAuth 转换器
+		basicAuthHandler := authn.NewBasicOAuthHandler(
+			cfg.auth.Authentication.OIDC.IssuerURL,
+			cfg.auth.Authentication.OIDC.ClientID,
+			cfg.auth.Authentication.OIDC.ClientSecret,
+			cfg.auth.Authentication.OIDC.LdapID,
+		)
+
+		// 3. 构建认证链：BasicAuth → OIDC
+		authenticator = authn.NewChainedAuthenticator(
+			basicAuthHandler,  // 先转换 Basic 认证为 Bearer Token
+			oidcAuthenticator, // 后验证 Bearer Token
+		)
 	} else {
 		//Use Delegating authenticator
 		klog.Infof("Valid token audiences: %s", strings.Join(cfg.auth.Authentication.Token.Audiences, ", "))
@@ -287,11 +301,7 @@ func Run(cfg *completedProxyRunOptions) error {
 		for _, pathIgnored := range cfg.ignorePaths {
 			ignorePathFound, err = path.Match(pathIgnored, req.URL.Path)
 			if err != nil {
-				http.Error(
-					w,
-					http.StatusText(http.StatusInternalServerError),
-					http.StatusInternalServerError,
-				)
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 				return
 			}
 			if ignorePathFound {
@@ -299,6 +309,23 @@ func Run(cfg *completedProxyRunOptions) error {
 			}
 		}
 
+		// 仅执行 OIDC 认证，跳过鉴权
+		_, ok, err := authenticator.AuthenticateRequest(req)
+		if err != nil || !ok {
+			http.Error(w, "OIDC Authentication Failed", http.StatusUnauthorized)
+			return
+		}
+
+		// 检查是否为 Docker Login 请求路径
+		isDockerLoginRequest := req.URL.Path == "/v2/" || req.URL.Path == "/v1/users/"
+		if isDockerLoginRequest {
+			// 直接返回成功响应（模拟 Registry 的 /v2/ 端点）
+			w.Header().Set("Docker-Distribution-Api-Version", "registry/2.0")
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		// 原逻辑处理其他请求
 		if !ignorePathFound {
 			handlerFunc := proxy.ServeHTTP
 			handlerFunc = filters.WithAuthHeaders(cfg.auth.Authentication.Header, handlerFunc)

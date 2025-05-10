@@ -124,6 +124,8 @@ func (o *ProxyRunOptions) Flags() k8sapiflag.NamedFlagSets {
 	flagset.StringVar(&o.Auth.Authentication.OIDC.GroupsPrefix, "oidc-groups-prefix", "", "If provided, all groups will be prefixed with this value to prevent conflicts with other authentication strategies.")
 	flagset.StringArrayVar(&o.Auth.Authentication.OIDC.SupportedSigningAlgs, "oidc-sign-alg", []string{"RS256"}, "Supported signing algorithms, default RS256")
 	flagset.StringVar(&o.Auth.Authentication.OIDC.CAFile, "oidc-ca-file", "", "If set, the OpenID server's certificate will be verified by one of the authorities in the oidc-ca-file, otherwise the host's root CA set will be used.")
+	flagset.StringVar(&o.Auth.Authentication.OIDC.ClientSecret, "oidc-secret", "", "The client secret for the OpenID Connect client, must be set if oidc-issuer-url is set.")
+	flagset.StringVar(&o.Auth.Authentication.OIDC.LdapID, "oidc-ldap-id", "", "The client ldapID of Connect client, must be set if oidc-issuer-url is set.")
 
 	//Kubeconfig flag
 	flagset.StringVar(&o.KubeconfigLocation, "kubeconfig", "", "Path to a kubeconfig file, specifying how to connect to the API server. If unset, in-cluster configuration will be used")

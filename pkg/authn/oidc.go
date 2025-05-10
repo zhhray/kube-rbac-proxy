@@ -25,6 +25,7 @@ import (
 	"k8s.io/apiserver/pkg/authentication/request/bearertoken"
 	"k8s.io/apiserver/pkg/server/dynamiccertificates"
 	"k8s.io/apiserver/plugin/pkg/authenticator/token/oidc"
+	"k8s.io/klog/v2"
 )
 
 type OIDCAuthenticator struct {
@@ -86,7 +87,13 @@ func NewOIDCAuthenticator(ctx context.Context, config *OIDCConfig) (*OIDCAuthent
 }
 
 func (o *OIDCAuthenticator) AuthenticateRequest(req *http.Request) (*authenticator.Response, bool, error) {
-	return o.requestAuthenticator.AuthenticateRequest(req)
+	klog.V(5).Infof("oidc AuthenticateRequest Request: %+v", req)
+	resp, success, err := o.requestAuthenticator.AuthenticateRequest(req)
+	klog.V(5).Infof("oidc AuthenticateRequest success: %v response: %+v", success, resp)
+	if err != nil {
+		klog.Errorf("oidc AuthenticateRequest error: %+v", err)
+	}
+	return resp, success, err
 }
 
 func (o *OIDCAuthenticator) Run(ctx context.Context) {

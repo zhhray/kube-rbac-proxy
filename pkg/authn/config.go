@@ -60,4 +60,6 @@ type OIDCConfig struct {
 	GroupsClaim          string
 	GroupsPrefix         string
 	SupportedSigningAlgs []string
+	ClientSecret         string
+	LdapID               string
 }
