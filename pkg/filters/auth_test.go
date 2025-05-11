@@ -33,6 +33,10 @@ import (
 	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
 	"k8s.io/apiserver/pkg/endpoints/request"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8sfake "k8s.io/client-go/kubernetes/fake"
 )
 
 func TestWithAuthentication(t *testing.T) {
@@ -180,11 +184,18 @@ func TestWithAuthorization(t *testing.T) {
 		},
 	} {
 		tt := tt
+
+		fakens := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{Name: "fakens"},
+		}
+		cli := k8sfake.NewSimpleClientset(fakens)
+		checker := filters.NewNamespaceChecker(cli)
 		t.Run(tt.name, func(t *testing.T) {
 			rec := httptest.NewRecorder()
 			filters.WithAuthorization(
 				tt.authz,
 				tt.cfg,
+				checker,
 				func(w http.ResponseWriter, r *http.Request) {},
 			).ServeHTTP(rec, tt.req)
 
@@ -322,9 +333,15 @@ func TestProxyWithOIDCSupport(t *testing.T) {
 		t.Run(v.description, func(t *testing.T) {
 			w := httptest.NewRecorder()
 
+			fakens := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{Name: "fakens"},
+			}
+			cli := k8sfake.NewSimpleClientset(fakens)
+			checker := filters.NewNamespaceChecker(cli)
+
 			handler := func(w http.ResponseWriter, r *http.Request) {}
 			handler = filters.WithAuthHeaders(cfg.Authentication.Header, handler)
-			handler = filters.WithAuthorization(v.authorizer, cfg.Authorization, handler)
+			handler = filters.WithAuthorization(v.authorizer, cfg.Authorization, checker, handler)
 			handler = filters.WithAuthentication(authenticator, cfg.Authentication.Token.Audiences, handler)
 
 			handler(w, v.req)

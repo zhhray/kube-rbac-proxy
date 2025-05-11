@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"net/http"
 	"net/textproto"
+	"strings"
 	"text/template"
 
 	"github.com/brancz/kube-rbac-proxy/pkg/authn"
@@ -51,6 +52,8 @@ func (n krpAuthorizerAttributesGetter) GetRequestAttributes(u user.Info, r *http
 		apiVerb = "create"
 	case "GET":
 		apiVerb = "get"
+	case "HEAD":
+		apiVerb = "get"
 	case "PUT":
 		apiVerb = "update"
 	case "PATCH":
@@ -66,6 +69,31 @@ func (n krpAuthorizerAttributesGetter) GetRequestAttributes(u user.Info, r *http
 			klog.V(5).Infof("kube-rbac-proxy request attributes: attrs=%#+v", attrs)
 		}
 	}()
+
+	if authn.IsDockerRegistryRequest(r) {
+		// 从路径提取命名空间
+		namespace := getNamespaceFromPath(r.URL.Path)
+		if namespace == "" {
+			klog.Warningf("cannot resolve namespace from path %s", r.URL.Path)
+			return allAttrs
+		}
+
+		// 设置动态资源属性
+		resourceAttributes := authorizer.AttributesRecord{
+			User:            u,
+			Verb:            apiVerb,
+			Namespace:       namespace,
+			APIGroup:        "apps",
+			APIVersion:      "v1",
+			Resource:        "deployments",
+			Subresource:     "",
+			Name:            "",
+			ResourceRequest: true,
+		}
+
+		allAttrs := append(allAttrs, resourceAttributes)
+		return allAttrs
+	}
 
 	if n.authzConfig.ResourceAttributes == nil {
 		// Default attributes mirror the API attributes that would allow this access to kube-rbac-proxy
@@ -142,4 +170,13 @@ func templateWithValue(templateString, value string) string {
 		return ""
 	}
 	return out.String()
+}
+
+// 新增函数：从请求路径中提取命名空间
+func getNamespaceFromPath(path string) string {
+	parts := strings.Split(strings.Trim(path, "/"), "/")
+	if len(parts) < 2 { // 路径格式为 /v2/{namespace}/...
+		return ""
+	}
+	return parts[1] // 返回第一级目录作为命名空间
 }

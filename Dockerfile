@@ -1,7 +1,4 @@
-ARG GOARCH=amd64
-ARG GOOS=linux
-ARG BASEIMAGE=gcr.io/distroless/static:nonroot-$GOARCH
-FROM $BASEIMAGE
+FROM build-harbor.alauda.cn/ops/distroless-static:20220806
 
 ARG BINARY=kube-rbac-proxy-linux-amd64
 COPY _output/$BINARY /usr/local/bin/kube-rbac-proxy

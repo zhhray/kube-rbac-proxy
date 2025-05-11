@@ -95,8 +95,6 @@ func parseBasicAuth(r *http.Request) (string, string, bool) {
 
 // 调用 OIDC Token 端点
 func (h *BasicOAuthHandler) getOIDCToken(username, password string) (string, error) {
-	klog.Infof("Attempting OIDC token exchange for user: %s", username)
-
 	form := url.Values{}
 	form.Add("grant_type", "password")
 	form.Add("username", username)
@@ -112,7 +110,6 @@ func (h *BasicOAuthHandler) getOIDCToken(username, password string) (string, err
 
 	req, _ := http.NewRequest("POST", h.oidcTokenEndpoint, strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	klog.V(5).Infof("OIDC token request: %s", form.Encode())
 
 	resp, err := h.httpClient.Do(req)
 	if err != nil {
@@ -139,14 +136,9 @@ func (h *BasicOAuthHandler) getOIDCToken(username, password string) (string, err
 
 // 判断是否为 Docker Registry 请求
 func IsDockerRegistryRequest(r *http.Request) bool {
-	authHeader := r.Header.Get("Authorization")
-	klog.Infof("r.URL.Path %s Authorization header: %s", r.URL.Path, authHeader)
-
 	ok := strings.HasPrefix(r.URL.Path, "/v2/") ||
 		strings.HasPrefix(r.URL.Path, "/v1/") ||
 		r.URL.Path == "/"
-
-	klog.Infof("r.URL.Path %s is docker registry request: %v", r.URL.Path, ok)
 	return ok
 }
 

@@ -41,6 +41,7 @@ import (
 	"golang.org/x/net/http2/h2c"
 
 	"k8s.io/apiserver/pkg/authentication/authenticator"
+	"k8s.io/apiserver/pkg/authorization/union"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -256,21 +257,21 @@ func Run(cfg *completedProxyRunOptions) error {
 		authenticator = delegatingAuthenticator
 	}
 
-	// sarClient := cfg.kubeClient.AuthorizationV1()
-	// sarAuthorizer, err := authz.NewSarAuthorizer(sarClient)
-	// if err != nil {
-	// 	return fmt.Errorf("failed to create sar authorizer: %w", err)
-	// }
+	sarClient := cfg.kubeClient.AuthorizationV1()
+	sarAuthorizer, err := authz.NewSarAuthorizer(sarClient)
+	if err != nil {
+		return fmt.Errorf("failed to create sar authorizer: %w", err)
+	}
 
-	// staticAuthorizer, err := authz.NewStaticAuthorizer(cfg.auth.Authorization.Static)
-	// if err != nil {
-	// 	return fmt.Errorf("failed to create static authorizer: %w", err)
-	// }
+	staticAuthorizer, err := authz.NewStaticAuthorizer(cfg.auth.Authorization.Static)
+	if err != nil {
+		return fmt.Errorf("failed to create static authorizer: %w", err)
+	}
 
-	// authorizer := union.New(
-	// 	staticAuthorizer,
-	// 	sarAuthorizer,
-	// )
+	authorizer := union.New(
+		staticAuthorizer,
+		sarAuthorizer,
+	)
 
 	upstreamTransport, err := initTransport(cfg.upstreamCABundle, cfg.tls.UpstreamClientCertFile, cfg.tls.UpstreamClientKeyFile)
 	if err != nil {
@@ -295,6 +296,7 @@ func Run(cfg *completedProxyRunOptions) error {
 		}
 	}
 
+	namespaceChecker := filters.NewNamespaceChecker(cfg.kubeClient)
 	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		authHeader := req.Header.Get("Authorization")
 
@@ -332,7 +334,7 @@ func Run(cfg *completedProxyRunOptions) error {
 		if !ignorePathFound {
 			handlerFunc := proxy.ServeHTTP
 			handlerFunc = filters.WithAuthHeaders(cfg.auth.Authentication.Header, handlerFunc)
-			// handlerFunc = filters.WithAuthorization(authorizer, cfg.auth.Authorization, handlerFunc)
+			handlerFunc = filters.WithAuthorization(authorizer, cfg.auth.Authorization, namespaceChecker, handlerFunc)
 			handlerFunc = filters.WithAuthentication(authenticator, cfg.auth.Authentication.Token.Audiences, handlerFunc)
 			handlerFunc(w, req)
 

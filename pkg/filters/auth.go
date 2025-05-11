@@ -61,6 +61,7 @@ func WithAuthentication(
 func WithAuthorization(
 	authz authorizer.Authorizer,
 	cfg *authz.Config,
+	namespaceChecker *NamespaceChecker, // 新增参数
 	handler http.HandlerFunc,
 ) http.HandlerFunc {
 	getRequestAttributes := proxy.
@@ -83,23 +84,45 @@ func WithAuthorization(
 			return
 		}
 
+		klog.Infof("will check authorization for allAttrs: %+v", allAttrs)
 		for _, attrs := range allAttrs {
+			res := attrs.GetResource()
+			if authn.IsDockerRegistryRequest(req) {
+				res = "images"
+			}
+
+			namespace := attrs.GetNamespace()
+			// 检查命名空间存在性
+			exists, err := namespaceChecker.CheckNamespace(namespace)
+			if err != nil {
+				klog.Errorf("Namespace check failed: %v", err)
+				http.Error(w, "Internal server error", http.StatusInternalServerError)
+				return
+			}
+			if !exists {
+				msg := fmt.Sprintf("Namespace %s does not exist", namespace)
+				klog.Errorf("Namespace check failed: %s", msg)
+				http.Error(w, msg, http.StatusNotFound)
+				return
+			}
+
 			// Authorize
 			authorized, reason, err := authz.Authorize(req.Context(), attrs)
 			if err != nil {
-				msg := fmt.Sprintf("Authorization error (user=%s, verb=%s, resource=%s, subresource=%s)", u.GetName(), attrs.GetVerb(), attrs.GetResource(), attrs.GetSubresource())
+				msg := fmt.Sprintf("Authorization error (namespace=%s, user=%s, verb=%s, resource=%s)", namespace, u.GetName(), attrs.GetVerb(), res)
 				klog.Errorf("%s: %s", msg, err)
 				http.Error(w, msg, http.StatusInternalServerError)
 				return
 			}
 			if authorized != authorizer.DecisionAllow {
-				msg := fmt.Sprintf("Forbidden (user=%s, verb=%s, resource=%s, subresource=%s)", u.GetName(), attrs.GetVerb(), attrs.GetResource(), attrs.GetSubresource())
+				msg := fmt.Sprintf("Forbidden (namespace=%s, user=%s, verb=%s, resource=%s)", namespace, u.GetName(), attrs.GetVerb(), res)
 				klog.V(2).Infof("%s. Reason: %q.", msg, reason)
 				http.Error(w, msg, http.StatusForbidden)
 				return
 			}
 		}
 
+		klog.Infof("successfully check authorization for allAttrs: %+v", allAttrs)
 		handler.ServeHTTP(w, req)
 	}
 }
