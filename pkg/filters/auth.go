@@ -86,11 +86,6 @@ func WithAuthorization(
 
 		klog.Infof("will check authorization for allAttrs: %+v", allAttrs)
 		for _, attrs := range allAttrs {
-			res := attrs.GetResource()
-			if authn.IsDockerRegistryRequest(req) {
-				res = "images"
-			}
-
 			namespace := attrs.GetNamespace()
 			// 检查命名空间存在性
 			exists, err := namespaceChecker.CheckNamespace(namespace)
@@ -109,13 +104,13 @@ func WithAuthorization(
 			// Authorize
 			authorized, reason, err := authz.Authorize(req.Context(), attrs)
 			if err != nil {
-				msg := fmt.Sprintf("Authorization error (namespace=%s, user=%s, verb=%s, resource=%s)", namespace, u.GetName(), attrs.GetVerb(), res)
+				msg := fmt.Sprintf("Authorization error (namespace=%s, user=%s, verb=%s, resource=%s)", namespace, u.GetName(), attrs.GetVerb(), attrs.GetResource())
 				klog.Errorf("%s: %s", msg, err)
 				http.Error(w, msg, http.StatusInternalServerError)
 				return
 			}
 			if authorized != authorizer.DecisionAllow {
-				msg := fmt.Sprintf("Forbidden (namespace=%s, user=%s, verb=%s, resource=%s)", namespace, u.GetName(), attrs.GetVerb(), res)
+				msg := fmt.Sprintf("Forbidden (namespace=%s, user=%s, verb=%s, resource=%s)", namespace, u.GetName(), attrs.GetVerb(), attrs.GetResource())
 				klog.V(2).Infof("%s. Reason: %q.", msg, reason)
 				http.Error(w, msg, http.StatusForbidden)
 				return

@@ -238,9 +238,13 @@ func Run(cfg *completedProxyRunOptions) error {
 			cfg.auth.Authentication.OIDC.LdapID,
 		)
 
+		// 初始化 ServiceAccount 认证器
+		saAuthenticator := authn.NewServiceAccountAuthenticator(cfg.kubeClient)
+
 		// 3. 构建认证链：BasicAuth → OIDC
 		authenticator = authn.NewChainedAuthenticator(
-			basicAuthHandler,  // 先转换 Basic 认证为 Bearer Token
+			saAuthenticator,   // 优先处理 ServiceAccount Token
+			basicAuthHandler,  // 再转换 Basic 认证为 Bearer Token
 			oidcAuthenticator, // 后验证 Bearer Token
 		)
 	} else {
