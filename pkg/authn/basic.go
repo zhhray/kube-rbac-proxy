@@ -1,6 +1,7 @@
 package authn
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
@@ -12,10 +13,12 @@ import (
 	"time"
 
 	"k8s.io/apiserver/pkg/authentication/authenticator"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 )
 
 type BasicOAuthHandler struct {
+	kubeClient        kubernetes.Interface
 	oidcTokenEndpoint string
 	clientID          string
 	clientSecret      string
@@ -23,7 +26,7 @@ type BasicOAuthHandler struct {
 	httpClient        *http.Client
 }
 
-func NewBasicOAuthHandler(oidcURL, clientID, clientSecret, ldapID string) *BasicOAuthHandler {
+func NewBasicOAuthHandler(oidcURL, clientID, clientSecret, ldapID string, kubeClient kubernetes.Interface) *BasicOAuthHandler {
 	transCfg := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // ignore expired SSL certificates
 	}
@@ -35,6 +38,7 @@ func NewBasicOAuthHandler(oidcURL, clientID, clientSecret, ldapID string) *Basic
 		clientSecret:      clientSecret,
 		ldapID:            ldapID,
 		httpClient:        httpClient,
+		kubeClient:        kubeClient,
 	}
 }
 
@@ -56,14 +60,31 @@ func (h *BasicOAuthHandler) AuthenticateRequest(req *http.Request) (*authenticat
 		return nil, false, nil
 	}
 
-	// 4. 获取 OIDC Token
+	// 4. 特殊处理：<token>:<jwt> 格式的 Basic Auth（用于kubelet发起的基于 ServiceAccount Token 的认证）)
+	if username == "<token>" { // 检查用户名为固定字符串 "token"
+		// 调用 TokenReview API 验证密码中的 JWT
+		userInfo, ok, err := verifyServiceAccountToken(context.Background(), h.kubeClient, password)
+		if err != nil {
+			klog.Errorf("Failed to verify SA token: %v", err)
+			return nil, false, nil // 降级处理，不影响其他认证流程
+		}
+		if ok {
+			// 认证成功，设置请求头并返回
+			req.Header.Set("Authorization", "Bearer "+password)
+			return userInfo, true, nil
+		}
+		// 验证失败则继续后续流程
+		return nil, false, nil
+	}
+
+	// 5. 获取 OIDC Token
 	token, err := h.getOIDCToken(username, password)
 	if err != nil {
 		klog.Errorf("OIDC token exchange failed: %v", err)
 		return nil, false, nil
 	}
 
-	// 5. 修改请求头并返回继续验证
+	// 6. 修改请求头并返回继续验证
 	req.Header.Set("Authorization", "Bearer "+token)
 	return nil, false, nil // 返回 false 以继续链式验证
 }

@@ -236,6 +236,7 @@ func Run(cfg *completedProxyRunOptions) error {
 			cfg.auth.Authentication.OIDC.ClientID,
 			cfg.auth.Authentication.OIDC.ClientSecret,
 			cfg.auth.Authentication.OIDC.LdapID,
+			cfg.kubeClient,
 		)
 
 		// 初始化 ServiceAccount 认证器
@@ -316,10 +317,12 @@ func Run(cfg *completedProxyRunOptions) error {
 			}
 		}
 
-		// 仅执行 OIDC 认证，跳过鉴权
+		// 执行 OIDC 认证
 		_, ok, err := authenticator.AuthenticateRequest(req)
 		if err != nil || !ok {
 			w.Header().Set("WWW-Authenticate", `Basic realm="Registry Realm", charset="UTF-8"`)
+			w.Header().Add("WWW-Authenticate", `Bearer realm="https://auth.registry.proxy/token", service="auth.registry.proxy", scope="repository:pull,push"`)
+			klog.Infof("Authentication Failed, response header: %v", w.Header())
 			http.Error(w, "OIDC Authentication Failed", http.StatusUnauthorized)
 			return
 		}
@@ -327,7 +330,7 @@ func Run(cfg *completedProxyRunOptions) error {
 		// 检查是否为 Docker Login 请求路径
 		isDockerLoginRequest := req.URL.Path == "/v2/" || req.URL.Path == "/v1/users/"
 		if isDockerLoginRequest {
-			klog.Infof("docker login success, return ok")
+			klog.Info("docker login success, return ok")
 			// 直接返回成功响应（模拟 Registry 的 /v2/ 端点）
 			w.Header().Set("Docker-Distribution-Api-Version", "registry/2.0")
 			w.WriteHeader(http.StatusOK)
