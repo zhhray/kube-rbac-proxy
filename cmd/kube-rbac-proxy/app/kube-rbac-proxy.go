@@ -320,8 +320,10 @@ func Run(cfg *completedProxyRunOptions) error {
 		// 执行 OIDC 认证
 		_, ok, err := authenticator.AuthenticateRequest(req)
 		if err != nil || !ok {
+			bearerRealm := fmt.Sprintf(`Bearer realm="%s://%s"`, req.URL.Scheme, req.Host)
+
 			w.Header().Set("WWW-Authenticate", `Basic realm="Registry Realm", charset="UTF-8"`)
-			w.Header().Add("WWW-Authenticate", `Bearer realm="https://auth.registry.proxy/token", service="auth.registry.proxy", scope="repository:pull,push"`)
+			w.Header().Set("WWW-Authenticate", bearerRealm)
 			klog.Infof("Authentication Failed, response header: %v", w.Header())
 			http.Error(w, "OIDC Authentication Failed", http.StatusUnauthorized)
 			return
