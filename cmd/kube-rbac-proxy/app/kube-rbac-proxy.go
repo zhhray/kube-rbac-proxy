@@ -320,10 +320,19 @@ func Run(cfg *completedProxyRunOptions) error {
 		// 执行 OIDC 认证
 		_, ok, err := authenticator.AuthenticateRequest(req)
 		if err != nil || !ok {
-			bearerRealm := fmt.Sprintf(`Bearer realm="%s://%s"`, req.URL.Scheme, req.Host)
+			realmVal := fmt.Sprintf(`Basic realm="Registry Realm", charset="UTF-8"`)
+			realm := req.Host
+			if req.URL.Scheme != "" {
+				realm = fmt.Sprintf("%s://%s", req.URL.Scheme, req.Host)
+			}
+			// 针对 kubeclt-acp 的特殊处理
+			if strings.Contains(req.UserAgent(), "kubeclt-acp") {
+				realmVal = fmt.Sprintf(`Bearer realm="%s"`, realm)
+			} else {
+				realmVal = fmt.Sprintf(`%s, Bearer realm="%s"`, realmVal, realm)
+			}
 
-			w.Header().Set("WWW-Authenticate", `Basic realm="Registry Realm", charset="UTF-8"`)
-			w.Header().Set("WWW-Authenticate", bearerRealm)
+			w.Header().Set("WWW-Authenticate", realmVal)
 			klog.Infof("Authentication Failed, response header: %v", w.Header())
 			http.Error(w, "OIDC Authentication Failed", http.StatusUnauthorized)
 			return
