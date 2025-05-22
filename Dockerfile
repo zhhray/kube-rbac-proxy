@@ -13,7 +13,16 @@ COPY cmd/ cmd/
 ENV CGO_ENABLED=0
 RUN go build --installsuffix cgo -o kube-rbac-proxy cmd/kube-rbac-proxy/main.go
 
-FROM build-harbor.alauda.cn/ops/distroless-static-nonroot:12-alauda-202503180545
+FROM build-harbor.alauda.cn/ops/alpine:3.20
+
+RUN echo "http://mirrors.aliyun.com/alpine/edge/main" >> /etc/apk/repositories \
+    && echo "http://mirrors.aliyun.com/alpine/edge/testing" >> /etc/apk/repositories \
+    && echo "http://mirrors.aliyun.com/alpine/edge/community" >> /etc/apk/repositories \
+    && sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories \
+    && apk update \
+    && apk upgrade \
+    apk add --no-cache ca-certificates && update-ca-certificates
+
 COPY --from=builder /workspace/kube-rbac-proxy /usr/local/bin/kube-rbac-proxy
 
 ENTRYPOINT ["/usr/local/bin/kube-rbac-proxy"]
