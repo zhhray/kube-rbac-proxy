@@ -20,11 +20,11 @@ import (
 	"context"
 	"net/http"
 
-	"k8s.io/apiserver/pkg/apis/apiserver"
-	"k8s.io/apiserver/pkg/authentication/authenticator"
-	"k8s.io/apiserver/pkg/authentication/request/bearertoken"
-	"k8s.io/apiserver/pkg/server/dynamiccertificates"
-	"k8s.io/apiserver/plugin/pkg/authenticator/token/oidc"
+	"github.com/alauda/apiserver/pkg/apis/apiserver"
+	"github.com/alauda/apiserver/pkg/authentication/authenticator"
+	"github.com/alauda/apiserver/pkg/authentication/request/bearertoken"
+	"github.com/alauda/apiserver/pkg/server/dynamiccertificates"
+	"github.com/alauda/apiserver/plugin/pkg/authenticator/token/oidc"
 	"k8s.io/klog/v2"
 )
 

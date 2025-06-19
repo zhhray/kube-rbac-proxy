@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"k8s.io/apiserver/pkg/authentication/authenticator"
+	"github.com/alauda/apiserver/pkg/authentication/authenticator"
 )
 
 // 实现链式认证接口

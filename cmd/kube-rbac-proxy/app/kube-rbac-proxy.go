@@ -40,8 +40,8 @@ import (
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 
-	"k8s.io/apiserver/pkg/authentication/authenticator"
-	"k8s.io/apiserver/pkg/authorization/union"
+	"github.com/alauda/apiserver/pkg/authentication/authenticator"
+	"github.com/alauda/apiserver/pkg/authorization/union"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -436,7 +436,7 @@ func Run(cfg *completedProxyRunOptions) error {
 				srv.TLSNextProto = make(map[string]func(*http.Server, *tls.Conn, http.Handler))
 
 				// For reference:
-				// https://github.com/kubernetes/kubernetes/blob/de054fbf9422d778568946de21a48c7330a6c1b7/staging/src/k8s.io/apiserver/pkg/server/secure_serving.go#L55-L59
+				// https://github.com/kubernetes/kubernetes/blob/de054fbf9422d778568946de21a48c7330a6c1b7/staging/src/github.com/alauda/apiserver/pkg/server/secure_serving.go#L55-L59
 				srv.TLSConfig.NextProtos = []string{"http/1.1"}
 			} else {
 				if err := http2.ConfigureServer(srv, cfg.http2Options); err != nil {
@@ -478,7 +478,7 @@ func Run(cfg *completedProxyRunOptions) error {
 					// https://pkg.go.dev/net/http
 					srv.TLSNextProto = make(map[string]func(*http.Server, *tls.Conn, http.Handler))
 					// For reference:
-					// https://github.com/kubernetes/kubernetes/blob/de054fbf9422d778568946de21a48c7330a6c1b7/staging/src/k8s.io/apiserver/pkg/server/secure_serving.go#L55-L59
+					// https://github.com/kubernetes/kubernetes/blob/de054fbf9422d778568946de21a48c7330a6c1b7/staging/src/github.com/alauda/apiserver/pkg/server/secure_serving.go#L55-L59
 					srv.TLSConfig.NextProtos = []string{"http/1.1"}
 				} else {
 					if err := http2.ConfigureServer(proxyEndpointsSrv, cfg.http2Options); err != nil {

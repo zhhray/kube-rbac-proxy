@@ -21,9 +21,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/alauda/apiserver/pkg/authorization/authorizer"
 	"github.com/brancz/kube-rbac-proxy/pkg/authz"
 	"github.com/google/go-cmp/cmp"
-	"k8s.io/apiserver/pkg/authorization/authorizer"
 )
 
 func TestGeneratingAuthorizerAttributes(t *testing.T) {

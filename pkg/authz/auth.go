@@ -22,9 +22,9 @@ import (
 	"fmt"
 	"time"
 
-	"k8s.io/apiserver/pkg/authorization/authorizer"
-	"k8s.io/apiserver/pkg/authorization/authorizerfactory"
-	"k8s.io/apiserver/pkg/server/options"
+	"github.com/alauda/apiserver/pkg/authorization/authorizer"
+	"github.com/alauda/apiserver/pkg/authorization/authorizerfactory"
+	"github.com/alauda/apiserver/pkg/server/options"
 	authorizationclient "k8s.io/client-go/kubernetes/typed/authorization/v1"
 )
 

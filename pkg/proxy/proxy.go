@@ -23,10 +23,10 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/alauda/apiserver/pkg/authentication/user"
+	"github.com/alauda/apiserver/pkg/authorization/authorizer"
 	"github.com/brancz/kube-rbac-proxy/pkg/authn"
 	"github.com/brancz/kube-rbac-proxy/pkg/authz"
-	"k8s.io/apiserver/pkg/authentication/user"
-	"k8s.io/apiserver/pkg/authorization/authorizer"
 	"k8s.io/klog/v2"
 )
 
@@ -91,13 +91,13 @@ func (n krpAuthorizerAttributesGetter) GetRequestAttributes(u user.Info, r *http
 			ResourceRequest: true,
 		}
 
-		allAttrs := append(allAttrs, resourceAttributes)
+		allAttrs = append(allAttrs, resourceAttributes)
 		return allAttrs
 	}
 
 	if n.authzConfig.ResourceAttributes == nil {
 		// Default attributes mirror the API attributes that would allow this access to kube-rbac-proxy
-		allAttrs := append(allAttrs, authorizer.AttributesRecord{
+		allAttrs = append(allAttrs, authorizer.AttributesRecord{
 			User:            u,
 			Verb:            apiVerb,
 			Namespace:       "",
@@ -113,7 +113,7 @@ func (n krpAuthorizerAttributesGetter) GetRequestAttributes(u user.Info, r *http
 	}
 
 	if n.authzConfig.Rewrites == nil {
-		allAttrs := append(allAttrs, authorizer.AttributesRecord{
+		allAttrs = append(allAttrs, authorizer.AttributesRecord{
 			User:            u,
 			Verb:            apiVerb,
 			Namespace:       n.authzConfig.ResourceAttributes.Namespace,
