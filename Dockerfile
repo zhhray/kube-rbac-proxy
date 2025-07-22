@@ -21,7 +21,8 @@ RUN echo "http://mirrors.aliyun.com/alpine/edge/main" >> /etc/apk/repositories \
     && sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories \
     && apk update \
     && apk upgrade \
-    && apk add --no-cache ca-certificates && update-ca-certificates
+    && apk add --no-cache ca-certificates && update-ca-certificates \
+    && rm -rf /usr/bin/nc
 
 COPY --from=builder /workspace/kube-rbac-proxy /usr/local/bin/kube-rbac-proxy
 
