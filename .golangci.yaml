@@ -1,3 +1,31 @@
 run:
+  timeout: 50m
+  concurrency: 4
+  modules-download-mode: readonly
   skip-dirs:
     - test/
+
+linters:
+  enable:
+    - gosec  # 显式启用 gosec linter
+linters-settings:
+  gosec:
+    # 指定要运行的规则（可选，默认运行所有规则）
+    includes:
+      - G101  # 检测硬编码的凭据
+      - G204  # 检测不安全的命令执行（如 exec.Command）
+      - G301  # 检测不安全的文件权限
+      - G306  # 检测文件写入时权限过于宽松
+      - G401  # 检测不安全的加密算法
+    # 排除某些规则（可选）
+    excludes:
+      - G304  # 排除某些规则，如检测文件路径的规则（视项目需求）
+    # 自定义规则配置（可选）
+    config:
+      G101:  # 硬编码凭据检测配置
+        pattern: "(?i)password|secret|key|token"  # 匹配的正则表达式
+        ignore_entropy: false  # 是否忽略熵检查
+        entropy_threshold: "80.0"  # 熵阈值
+        per_char_threshold: "3.0"  # 每个字符的熵阈值
+        truncate: "32"  # 截断长度
+      G306: "0600"  # 文件写入权限，例如限制为 0600
