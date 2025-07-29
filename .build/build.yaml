@@ -72,7 +72,7 @@ spec:
       when: []
       params:
         - name: tool-image
-          value: registry.alauda.cn:60080/devops/builder-go:1.22
+          value: registry.alauda.cn:60080/devops/builder-go:1.24
   git:
     options:
       depth: 1
