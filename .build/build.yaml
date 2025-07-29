@@ -40,6 +40,7 @@ spec:
           workspace: source
       runAfter:
         - image-build
+        - golangci-lint-v1-a1a64
       when: []
       params:
         - name: server
@@ -55,6 +56,23 @@ spec:
           value:
             - coverage-delta=10
             - duplication-delta=10
+    - name: golangci-lint-v1-a1a64
+      timeout: 30m
+      retries: 0
+      taskRef:
+        resolver: katanomi.hub
+        params:
+          - name: kind
+            value: task
+          - name: name
+            value: golangci-lint-v1
+      workspaces:
+        - name: source
+          workspace: source
+      when: []
+      params:
+        - name: tool-image
+          value: registry.alauda.cn:60080/devops/builder-go:1.22
   git:
     options:
       depth: 1
