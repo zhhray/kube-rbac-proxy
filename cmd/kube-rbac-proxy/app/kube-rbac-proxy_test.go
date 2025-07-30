@@ -104,7 +104,7 @@ func Test_parseAuthorizationConfigFile(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := os.WriteFile(filePath, []byte(tt.fileContent), 0666); err != nil {
+			if err := os.WriteFile(filePath, []byte(tt.fileContent), 0o600); err != nil {
 				t.Fatalf("failed to write file: %v", err)
 			}
 

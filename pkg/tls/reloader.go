@@ -21,9 +21,10 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"os"
 	"sync"
 	"time"
+
+	"github.com/brancz/kube-rbac-proxy/pkg/utils"
 
 	"k8s.io/klog/v2"
 )
@@ -78,12 +79,12 @@ func (r *CertReloader) Watch(ctx context.Context) error {
 }
 
 func (r *CertReloader) reload() error {
-	certRaw, err := os.ReadFile(r.certPath)
+	certRaw, err := utils.SafeReadFile(r.certPath)
 	if err != nil {
 		return fmt.Errorf("error loading certificate: %v", err)
 	}
 
-	keyRaw, err := os.ReadFile(r.keyPath)
+	keyRaw, err := utils.SafeReadFile(r.keyPath)
 	if err != nil {
 		return fmt.Errorf("error loading key: %v", err)
 	}

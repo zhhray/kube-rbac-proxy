@@ -20,7 +20,12 @@ func NewChainedAuthenticator(auths ...authenticator.Request) *ChainedAuthenticat
 
 func cloneRequest(req *http.Request) *http.Request {
 	reqCopy := req.Clone(context.Background())
-	reqCopy.URL = &(*req.URL) // 深拷贝 URL 对象
+	if req.URL == nil {
+		reqCopy.URL = nil
+	} else {
+		urlCopy := *req.URL
+		reqCopy.URL = &urlCopy
+	}
 	reqCopy.Header = req.Header.Clone()
 	return reqCopy
 }

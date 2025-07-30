@@ -314,7 +314,11 @@ func writeTempFile(pattern string, data []byte) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("error creating temp file: %v", err)
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			klog.Errorf("File close error: %v", err)
+		}
+	}()
 
 	n, err := f.Write(data)
 	if err == nil && n < len(data) {

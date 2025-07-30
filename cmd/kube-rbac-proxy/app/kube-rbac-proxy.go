@@ -59,6 +59,7 @@ import (
 	"github.com/brancz/kube-rbac-proxy/pkg/filters"
 	"github.com/brancz/kube-rbac-proxy/pkg/proxy"
 	rbac_proxy_tls "github.com/brancz/kube-rbac-proxy/pkg/tls"
+	"github.com/brancz/kube-rbac-proxy/pkg/utils"
 )
 
 func NewKubeRBACProxyCommand() *cobra.Command {
@@ -164,7 +165,7 @@ func Complete(o *options.ProxyRunOptions) (*completedProxyRunOptions, error) {
 	}
 
 	if upstreamCAPath := o.UpstreamCAFile; len(upstreamCAPath) > 0 {
-		upstreamCAPEM, err := os.ReadFile(upstreamCAPath)
+		upstreamCAPEM, err := utils.SafeReadFile(upstreamCAPath)
 		if err != nil {
 			return nil, err
 		}
@@ -204,12 +205,22 @@ func Complete(o *options.ProxyRunOptions) (*completedProxyRunOptions, error) {
 	}
 
 	completed.http2Disable = o.HTTP2Disable
+
+	http2MaxSizeInt32, err := utils.SafeInt32Convert(o.HTTP2MaxSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert HTTP2MaxSize to int32: %w", err)
+	}
+	http2MaxConcurrentStreamsInt32, err := utils.SafeInt32Convert(o.HTTP2MaxConcurrentStreams)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert HTTP2MaxConcurrentStreams to int32: %w", err)
+	}
+
 	completed.http2Options = &http2.Server{
 		IdleTimeout:                  90 * time.Second,
 		MaxConcurrentStreams:         o.HTTP2MaxConcurrentStreams,
 		MaxReadFrameSize:             o.HTTP2MaxSize,
-		MaxUploadBufferPerStream:     int32(o.HTTP2MaxSize),
-		MaxUploadBufferPerConnection: int32(o.HTTP2MaxSize) * int32(o.HTTP2MaxConcurrentStreams),
+		MaxUploadBufferPerStream:     http2MaxSizeInt32,
+		MaxUploadBufferPerConnection: http2MaxSizeInt32 * http2MaxConcurrentStreamsInt32,
 	}
 
 	return completed, nil
@@ -320,7 +331,7 @@ func Run(cfg *completedProxyRunOptions) error {
 		// 执行 OIDC 认证
 		_, ok, err := authenticator.AuthenticateRequest(req)
 		if err != nil || !ok {
-			realmVal := fmt.Sprintf(`Basic realm="Registry Realm", charset="UTF-8"`)
+			realmVal := `Basic realm="Registry Realm", charset="UTF-8"`
 			realm := req.Host
 			if req.URL.Scheme != "" {
 				realm = fmt.Sprintf("%s://%s", req.URL.Scheme, req.Host)
@@ -376,8 +387,12 @@ func Run(cfg *completedProxyRunOptions) error {
 	{
 		if cfg.secureListenAddress != "" {
 			srv := &http.Server{
-				Handler:   mux,
-				TLSConfig: &tls.Config{},
+				ReadHeaderTimeout: 5 * time.Second,
+				ReadTimeout:       15 * time.Second,
+				WriteTimeout:      30 * time.Second,
+				IdleTimeout:       60 * time.Second,
+				Handler:           mux,
+				TLSConfig:         utils.CreateSecureTLSConfig(),
 			}
 
 			if cfg.tls.CertFile == "" && cfg.tls.KeyFile == "" {
@@ -450,7 +465,11 @@ func Run(cfg *completedProxyRunOptions) error {
 				if err != nil {
 					return fmt.Errorf("failed to listen on secure address: %w", err)
 				}
-				defer l.Close()
+				defer func() {
+					if err := l.Close(); err != nil {
+						klog.Errorf("Failed to close listener: %v", err)
+					}
+				}()
 
 				klog.Infof("Listening securely on %v", cfg.secureListenAddress)
 				tlsListener := tls.NewListener(l, srv.TLSConfig)
@@ -466,8 +485,12 @@ func Run(cfg *completedProxyRunOptions) error {
 				proxyEndpointsMux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("ok")) })
 
 				proxyEndpointsSrv := &http.Server{
-					Handler:   proxyEndpointsMux,
-					TLSConfig: srv.TLSConfig.Clone(),
+					ReadHeaderTimeout: 5 * time.Second,
+					ReadTimeout:       15 * time.Second,
+					WriteTimeout:      30 * time.Second,
+					IdleTimeout:       60 * time.Second,
+					Handler:           proxyEndpointsMux,
+					TLSConfig:         srv.TLSConfig.Clone(),
 				}
 
 				if cfg.http2Disable {
@@ -498,7 +521,11 @@ func Run(cfg *completedProxyRunOptions) error {
 					if err != nil {
 						return fmt.Errorf("failed to listen on secure address: %w", err)
 					}
-					defer proxyListener.Close()
+					defer func() {
+						if err := proxyListener.Close(); err != nil {
+							klog.Errorf("Failed to close proxy listener: %v", err)
+						}
+					}()
 
 					klog.Infof("Listening securely on %v for proxy endpoints", endpointsAddr)
 					tlsListener := tls.NewListener(proxyListener, srv.TLSConfig)
@@ -513,7 +540,12 @@ func Run(cfg *completedProxyRunOptions) error {
 	}
 	{
 		if cfg.insecureListenAddress != "" {
-			srv := &http.Server{}
+			srv := &http.Server{
+				ReadHeaderTimeout: 5 * time.Second,
+				ReadTimeout:       15 * time.Second,
+				WriteTimeout:      30 * time.Second,
+				IdleTimeout:       60 * time.Second,
+			}
 			if cfg.http2Disable {
 				srv.Handler = mux
 			} else {
@@ -581,7 +613,7 @@ func initKubeConfig(kcLocation string) (*rest.Config, error) {
 
 func parseAuthorizationConfigFile(filePath string) (*authz.Config, error) {
 	klog.Infof("Reading config file: %s", filePath)
-	b, err := os.ReadFile(filePath)
+	b, err := utils.SafeReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read resource-attribute file: %w", err)
 	}

@@ -23,6 +23,8 @@ import (
 	"net"
 	"net/http"
 	"time"
+
+	"github.com/brancz/kube-rbac-proxy/pkg/utils"
 )
 
 func initTransport(upstreamCAPool *x509.CertPool, upstreamClientCertPath, upstreamClientKeyPath string) (http.RoundTripper, error) {
@@ -39,6 +41,8 @@ func initTransport(upstreamCAPool *x509.CertPool, upstreamClientCertPath, upstre
 		}
 	}
 
+	tlsConfig := utils.CreateSecureTLSConfig()
+	tlsConfig.RootCAs = upstreamCAPool
 	// http.Transport sourced from go 1.10.7
 	transport := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
@@ -51,9 +55,7 @@ func initTransport(upstreamCAPool *x509.CertPool, upstreamClientCertPath, upstre
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
-		TLSClientConfig: &tls.Config{
-			RootCAs: upstreamCAPool,
-		},
+		TLSClientConfig:       tlsConfig,
 	}
 
 	if certKeyPair.Certificate != nil {

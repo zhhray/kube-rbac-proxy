@@ -28,11 +28,11 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/brancz/kube-rbac-proxy/pkg/utils"
 	certutil "k8s.io/client-go/util/cert"
 	"k8s.io/client-go/util/keyutil"
 )
@@ -49,7 +49,7 @@ func TestInitTransportWithDefault(t *testing.T) {
 }
 
 func TestInitTransportWithCustomCA(t *testing.T) {
-	upstreamCAPEM, err := os.ReadFile("../../../test/ca.pem")
+	upstreamCAPEM, err := utils.SafeReadFile("../../../test/ca.pem")
 	if err != nil {
 		t.Fatalf("failed to read '../../../test/ca.pem': %v", err)
 	}
@@ -81,7 +81,11 @@ func testHTTPHandler(w http.ResponseWriter, req *http.Request) {
 
 func TestInitTransportWithClientCertAuth(t *testing.T) {
 	tlsServer := http.Server{
-		Handler: http.HandlerFunc(testHTTPHandler),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		Handler:           http.HandlerFunc(testHTTPHandler),
 	}
 
 	cert, key, err := certutil.GenerateSelfSignedCertKey("127.0.0.1", nil, nil)
@@ -103,20 +107,33 @@ func TestInitTransportWithClientCertAuth(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to listen on secure address: %v", err)
 	}
-	defer l.Close()
-	tlsListener := tls.NewListener(l, &tls.Config{
-		Certificates: []tls.Certificate{tlsCert},
-		ClientCAs:    clientCA,
-		ClientAuth:   tls.RequireAndVerifyClientCert,
-	})
-	defer tlsListener.Close()
-
-	go func() {
-		if err := tlsServer.Serve(tlsListener); err != nil {
-			t.Logf("failed to run the test server: %v", err)
+	defer func() {
+		if errI := l.Close(); errI != nil {
+			t.Logf("Close error (non-fatal): %v", errI)
 		}
 	}()
-	defer tlsServer.Close()
+	tlsConfig := utils.CreateSecureTLSConfig()
+	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+	tlsConfig.ClientCAs = clientCA
+	tlsConfig.Certificates = []tls.Certificate{tlsCert}
+
+	tlsListener := tls.NewListener(l, tlsConfig)
+	defer func() {
+		if errI := tlsListener.Close(); errI != nil {
+			t.Logf("Close error (non-fatal): %v", errI)
+		}
+	}()
+
+	go func() {
+		if errI := tlsServer.Serve(tlsListener); errI != nil {
+			t.Logf("failed to run the test server: %v", errI)
+		}
+	}()
+	defer func() {
+		if err := tlsServer.Close(); err != nil {
+			t.Logf("Close error (non-fatal): %v", err)
+		}
+	}()
 
 	tmpDir := t.TempDir()
 	clientCertPath := filepath.Join(tmpDir, "client.crt")
@@ -146,7 +163,11 @@ func TestInitTransportWithClientCertAuth(t *testing.T) {
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Logf("Body close error (non-fatal): %v", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, err := io.ReadAll(resp.Body)

@@ -2,7 +2,6 @@ package authn
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -11,6 +10,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/brancz/kube-rbac-proxy/pkg/utils"
 
 	"github.com/alauda/apiserver/pkg/authentication/authenticator"
 	"k8s.io/client-go/kubernetes"
@@ -27,8 +28,10 @@ type BasicOAuthHandler struct {
 }
 
 func NewBasicOAuthHandler(oidcURL, clientID, clientSecret, ldapID string, kubeClient kubernetes.Interface) *BasicOAuthHandler {
+	tlsConfig := utils.CreateSecureTLSConfig()
+	tlsConfig.InsecureSkipVerify = true
 	transCfg := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // ignore expired SSL certificates
+		TLSClientConfig: tlsConfig, // ignore expired SSL certificates
 	}
 
 	httpClient := &http.Client{Timeout: 30 * time.Second, Transport: transCfg}
@@ -137,7 +140,11 @@ func (h *BasicOAuthHandler) getOIDCToken(username, password string) (string, err
 		klog.Errorf("OIDC token request failed: %v", err)
 		return "", fmt.Errorf("oidc server unreachable: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			klog.Errorf("Body close error: %v", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
